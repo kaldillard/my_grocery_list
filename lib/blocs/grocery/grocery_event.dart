@@ -9,12 +9,12 @@ class LoadGroceryData extends GroceryEvent {}
 
 class AddGroceryItem extends GroceryEvent {
   final String name;
-  final String addedBy;
+  final String addedByMemberId; // Changed from name to member ID
 
-  AddGroceryItem(this.name, this.addedBy);
+  AddGroceryItem(this.name, this.addedByMemberId);
 
   @override
-  List<Object?> get props => [name, addedBy];
+  List<Object?> get props => [name, addedByMemberId];
 }
 
 class ToggleGroceryItem extends GroceryEvent {
@@ -36,3 +36,12 @@ class DeleteGroceryItem extends GroceryEvent {
 }
 
 class ClearCompletedItems extends GroceryEvent {}
+
+class GroceryItemsUpdated extends GroceryEvent {
+  final List<Map<String, dynamic>> items;
+
+  GroceryItemsUpdated(this.items);
+
+  @override
+  List<Object?> get props => [items];
+}

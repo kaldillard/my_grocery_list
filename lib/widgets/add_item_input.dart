@@ -11,7 +11,7 @@ import '../utils/constants.dart';
 /// Widget for adding new grocery items
 /// Displays a text field that allows users to add items to the grocery list
 class AddItemInput extends StatefulWidget {
-  const AddItemInput({super.key});
+  const AddItemInput({Key? key}) : super(key: key);
 
   @override
   State<AddItemInput> createState() => _AddItemInputState();
@@ -28,10 +28,10 @@ class _AddItemInputState extends State<AddItemInput> {
     super.dispose();
   }
 
-  void _addItem(BuildContext context, String memberName) {
+  void _addItem(BuildContext context, String memberId) {
     final text = _controller.text.trim();
     if (text.isNotEmpty) {
-      context.read<GroceryBloc>().add(AddGroceryItem(text, memberName));
+      context.read<GroceryBloc>().add(AddGroceryItem(text, memberId));
       _controller.clear();
       _focusNode.unfocus();
     }

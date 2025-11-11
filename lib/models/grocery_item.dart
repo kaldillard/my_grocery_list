@@ -15,6 +15,7 @@ class GroceryItem extends Equatable {
     required this.addedAt,
   });
 
+  /// Create a copy of this item with some fields replaced
   GroceryItem copyWith({
     String? id,
     String? name,
@@ -31,6 +32,33 @@ class GroceryItem extends Equatable {
     );
   }
 
+  /// Convert this item to JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'isCompleted': isCompleted,
+      'addedBy': addedBy,
+      'addedAt': addedAt.toIso8601String(),
+    };
+  }
+
+  /// Create an item from JSON
+  factory GroceryItem.fromJson(Map<String, dynamic> json) {
+    return GroceryItem(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      isCompleted: json['isCompleted'] as bool? ?? false,
+      addedBy: json['addedBy'] as String,
+      addedAt: DateTime.parse(json['addedAt'] as String),
+    );
+  }
+
   @override
   List<Object?> get props => [id, name, isCompleted, addedBy, addedAt];
+
+  @override
+  String toString() {
+    return 'GroceryItem(id: $id, name: $name, isCompleted: $isCompleted, addedBy: $addedBy, addedAt: $addedAt)';
+  }
 }

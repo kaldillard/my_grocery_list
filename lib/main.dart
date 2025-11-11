@@ -1,34 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:equatable/equatable.dart';
-import 'package:my_grocery_list/blocs/family/family_bloc.dart';
-import 'package:my_grocery_list/blocs/family/family_event.dart';
-import 'package:my_grocery_list/blocs/grocery/grocery_bloc.dart';
-import 'package:my_grocery_list/blocs/grocery/grocery_event.dart';
-import 'package:my_grocery_list/screens/grocery_list_screen.dart';
-import 'package:uuid/uuid.dart';
+import 'package:my_grocery_list/services/supabase_service.dart';
+import 'app.dart';
+import 'services/storage_service.dart';
+import 'repositories/grocery_repository.dart';
+import 'repositories/family_repository.dart';
 
-void main() {
-  runApp(const MyApp());
-}
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  // Initialize Supabase
+  final supabaseService = await SupabaseService.initialize(
+    supabaseUrl: 'https://spgxvhfotvfyjpuciuee.supabase.co',
+    supabaseAnonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNwZ3h2aGZvdHZmeWpwdWNpdWVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4NTc4ODMsImV4cCI6MjA3ODQzMzg4M30.oaNLgMACmsSW5hJLJ2zOslaksNTuSV1pztXk_JyYf0Y',
+  );
 
-  @override
-  Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (context) => GroceryBloc()..add(LoadGroceryData()),
-        ),
-        BlocProvider(create: (context) => FamilyBloc()..add(LoadFamilyData())),
-      ],
-      child: MaterialApp(
-        title: 'Family Grocery List',
-        theme: ThemeData(primarySwatch: Colors.green, useMaterial3: true),
-        home: const GroceryListScreen(),
-      ),
-    );
-  }
+  runApp(MyApp(supabaseService: supabaseService));
 }
