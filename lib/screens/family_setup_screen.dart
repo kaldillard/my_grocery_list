@@ -6,19 +6,29 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:my_grocery_list/blocs/auth/auth_event.dart';
 import 'package:my_grocery_list/blocs/family_setup/family_setup_event.dart';
 import 'package:my_grocery_list/blocs/family_setup/family_setup_state.dart';
+import 'package:my_grocery_list/screens/auth_wrapper_screen.dart';
 import 'package:my_grocery_list/utils/color_utils.dart';
 import '../blocs/family_setup/family_setup_bloc.dart';
 import '../blocs/auth/auth_bloc.dart';
 
 class FamilySetupScreen extends StatefulWidget {
-  const FamilySetupScreen({super.key});
+  final bool isCreatingNew;
+
+  const FamilySetupScreen({super.key, this.isCreatingNew = true});
 
   @override
   State<FamilySetupScreen> createState() => _FamilySetupScreenState();
 }
 
 class _FamilySetupScreenState extends State<FamilySetupScreen> {
-  bool _isCreatingFamily = true;
+  late bool _isCreatingFamily;
+
+  @override
+  void initState() {
+    super.initState();
+    _isCreatingFamily = widget.isCreatingNew;
+  }
+
   final _formKey = GlobalKey<FormState>();
   final _familyNameController = TextEditingController();
   final _memberNameController = TextEditingController();
@@ -175,7 +185,7 @@ class _FamilySetupScreenState extends State<FamilySetupScreen> {
                           if (value == null || value.isEmpty) {
                             return 'Please enter a family name';
                           }
-                          return value;
+                          return null;
                         },
                         enabled: !isLoading,
                       ),
@@ -224,7 +234,7 @@ class _FamilySetupScreenState extends State<FamilySetupScreen> {
                         if (value == null || value.isEmpty) {
                           return 'Please enter your name';
                         }
-                        return value;
+                        return null;
                       },
                       enabled: !isLoading,
                     ),
@@ -373,9 +383,14 @@ class _FamilySetupScreenState extends State<FamilySetupScreen> {
             actions: [
               TextButton(
                 onPressed: () {
-                  Navigator.of(context).pop();
-                  // Trigger auth check to reload the app
-                  context.read<AuthBloc>().add(AuthCheckRequested());
+                  Navigator.of(context).pop(); // Close dialog
+                  // Navigate to fresh AuthWrapperScreen which will check for family
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) => const AuthWrapperScreen(),
+                    ),
+                    (route) => false,
+                  );
                 },
                 child: const Text('Continue'),
               ),

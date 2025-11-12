@@ -1,5 +1,6 @@
 // lib/services/supabase_service.dart
 
+import 'package:my_grocery_list/models/subscription.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseService {
@@ -137,32 +138,168 @@ class SupabaseService {
     String familyId,
     void Function(List<Map<String, dynamic>>) onData,
   ) {
-    return _client
-        .channel('grocery_items_$familyId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'grocery_items',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'family_id',
-            value: familyId,
-          ),
-          callback: (payload) async {
-            final items = await getGroceryItems(familyId);
-            onData(items);
-          },
-        )
-        .subscribe();
+    print(
+      'SupabaseService - Subscribing to grocery items for family: $familyId',
+    );
+
+    final channel =
+        _client
+            .channel('grocery_items_$familyId')
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: 'grocery_items',
+              filter: PostgresChangeFilter(
+                type: PostgresChangeFilterType.eq,
+                column: 'family_id',
+                value: familyId,
+              ),
+              callback: (payload) async {
+                print('SupabaseService - Realtime event: ${payload.eventType}');
+                print('SupabaseService - New data: ${payload.newRecord}');
+
+                // Fetch fresh data
+                final items = await getGroceryItems(familyId);
+                print(
+                  'SupabaseService - Fetched ${items.length} items after update',
+                );
+                onData(items);
+              },
+            )
+            .subscribe();
+
+    //print('SupabaseService - Channel created: ${channel.status}');
+    return channel;
   }
 
   Future<Map<String, dynamic>?> getFamilyMembershipForCurrentUser() async {
     if (currentUser == null) return null;
 
-    return await _client
+    // Check if user has a selected family
+    if (_selectedFamilyId != null) {
+      // Verify the user is still a member of this family
+      final membership =
+          await _client
+              .from('family_members')
+              .select('family_id')
+              .eq('user_id', currentUser!.id)
+              .eq('family_id', _selectedFamilyId!)
+              .maybeSingle();
+
+      if (membership != null) {
+        return membership;
+      }
+    }
+
+    // Otherwise, get the most recent family or return null to show family list
+    final memberships = await _client
         .from('family_members')
         .select('family_id')
         .eq('user_id', currentUser!.id)
+        .order('joined_at', ascending: false)
+        .limit(1);
+
+    // If user has families, return null to show the family list screen
+    // If user has no families, also return null to show family list (which will show empty state)
+    return null;
+  }
+
+  /// Get all families the current user is a member of
+  Future<List<Map<String, dynamic>>> getAllFamiliesForCurrentUser() async {
+    if (currentUser == null) return [];
+
+    // First get all families the user belongs to
+    final memberships = await _client
+        .from('family_members')
+        .select('family_id, families!inner(id, name, invite_code, created_at)')
+        .eq('user_id', currentUser!.id)
+        .order('joined_at', ascending: false);
+
+    // Then for each family, get the member count
+    final List<Map<String, dynamic>> familiesWithCount = [];
+
+    for (var membership in memberships) {
+      final familyId = membership['family_id'];
+
+      // Count members in this family
+      final members = await _client
+          .from('family_members')
+          .select('id')
+          .eq('family_id', familyId);
+
+      familiesWithCount.add({
+        'families': membership['families'],
+        'family_id': familyId,
+        'member_count': members.length,
+      });
+    }
+
+    return familiesWithCount;
+  }
+
+  /// Get a specific family by ID
+  Future<Map<String, dynamic>?> getFamilyById(String familyId) async {
+    return await _client
+        .from('families')
+        .select()
+        .eq('id', familyId)
         .maybeSingle();
+  }
+
+  /// Store selected family ID locally (you can use SharedPreferences later)
+  String? _selectedFamilyId;
+
+  void setSelectedFamilyId(String familyId) {
+    _selectedFamilyId = familyId;
+  }
+
+  String? getSelectedFamilyId() {
+    return _selectedFamilyId;
+  }
+
+  Future<Subscription?> getSubscriptionForUser(String userId) async {
+    final result =
+        await _client
+            .from('subscriptions')
+            .select()
+            .eq('user_id', userId)
+            .maybeSingle();
+
+    return result != null ? Subscription.fromJson(result) : null;
+  }
+
+  Future<bool> canCreateList(String userId) async {
+    final sub = await getSubscriptionForUser(userId);
+
+    if (sub == null || sub.tier == SubscriptionTier.free) {
+      // Check if user already has a list
+      final lists = await _client
+          .from('families')
+          .select('id')
+          .eq('created_by', userId);
+
+      return lists.length < 1;
+    }
+
+    return true; // Pro and Family have unlimited lists
+  }
+
+  Future<bool> canAddMember(String familyId) async {
+    final sub =
+        await _client
+            .from('subscriptions')
+            .select()
+            .eq('family_id', familyId)
+            .maybeSingle();
+
+    if (sub == null) return false;
+
+    final currentMembers = await _client
+        .from('family_members')
+        .select('id')
+        .eq('family_id', familyId);
+
+    final subData = Subscription.fromJson(sub);
+    return currentMembers.length < subData.maxMembers;
   }
 }

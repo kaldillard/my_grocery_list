@@ -58,7 +58,7 @@ class _AddItemInputState extends State<AddItemInput> {
                   selectedMember != null
                       ? IconButton(
                         icon: const Icon(Icons.add),
-                        onPressed: () => _addItem(context, selectedMember.name),
+                        onPressed: () => _addItem(context, selectedMember.id),
                       )
                       : const Icon(Icons.add),
               helperText:
@@ -69,7 +69,7 @@ class _AddItemInputState extends State<AddItemInput> {
             textInputAction: TextInputAction.done,
             onSubmitted: (value) {
               if (selectedMember != null) {
-                _addItem(context, selectedMember.name);
+                _addItem(context, selectedMember.id);
               }
             },
           ),

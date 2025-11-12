@@ -27,9 +27,17 @@ class GroceryBloc extends Bloc<GroceryEvent, GroceryState> {
   }
 
   void _setupRealtimeSubscription() {
+    print(
+      'GroceryBloc - Setting up real-time subscription for family: $familyId',
+    );
+
     _subscription = supabaseService.subscribeToGroceryItems(familyId, (items) {
+      print('GroceryBloc - Real-time update received: ${items.length} items');
       add(GroceryItemsUpdated(items));
     });
+
+    // Check if subscription was successful
+    // print('GroceryBloc - Subscription status: ${_subscription?.status}');
   }
 
   Future<void> _onLoadGroceryData(

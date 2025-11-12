@@ -17,19 +17,30 @@ class FamilySetupBloc extends Bloc<FamilySetupEvent, FamilySetupState> {
     Emitter<FamilySetupState> emit,
   ) async {
     emit(FamilySetupLoading());
+    print('Creating family: ${event.familyName}');
+    print('Member name: ${event.memberName}');
+    print('Current user: ${supabaseService.currentUser?.id}');
+
     try {
       final family = await supabaseService.createFamily(event.familyName);
+      print('Family created: $family');
+
       if (family != null) {
+        print('Adding family member...');
         await supabaseService.addFamilyMember(
           familyId: family['id'],
           displayName: event.memberName,
           color: event.color,
         );
+        print('Member added successfully');
         emit(FamilySetupSuccess(family['id'], family['invite_code']));
       } else {
+        print('Family creation returned null');
         emit(FamilySetupError('Failed to create family'));
       }
     } catch (e) {
+      print('Error creating family: $e');
+      print('Error type: ${e.runtimeType}');
       emit(FamilySetupError(e.toString()));
     }
   }

@@ -8,6 +8,7 @@ import 'package:my_grocery_list/blocs/grocery/grocery_event.dart';
 import 'package:my_grocery_list/blocs/grocery/grocery_state.dart';
 import 'package:my_grocery_list/models/family_member.dart';
 import 'package:my_grocery_list/models/grocery_item.dart';
+import 'package:my_grocery_list/screens/family_list_screen.dart';
 import 'package:my_grocery_list/utils/color_utils.dart';
 import 'package:my_grocery_list/widgets/add_item_input.dart';
 import 'package:my_grocery_list/widgets/family_manager_sheet.dart';
@@ -22,6 +23,14 @@ class GroceryListScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Family Grocery List'),
+        leading: IconButton(
+          icon: const Icon(Icons.list),
+          onPressed: () {
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const FamilyListScreen()));
+          },
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.people),
