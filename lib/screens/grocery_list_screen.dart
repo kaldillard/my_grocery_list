@@ -1,15 +1,14 @@
+// lib/screens/grocery_list_screen.dart
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:my_grocery_list/blocs/family/family_bloc.dart';
-import 'package:my_grocery_list/blocs/family/family_event.dart';
-import 'package:my_grocery_list/blocs/family/family_state.dart';
 import 'package:my_grocery_list/blocs/grocery/grocery_bloc.dart';
 import 'package:my_grocery_list/blocs/grocery/grocery_event.dart';
 import 'package:my_grocery_list/blocs/grocery/grocery_state.dart';
-import 'package:my_grocery_list/models/family_member.dart';
-import 'package:my_grocery_list/models/grocery_item.dart';
 import 'package:my_grocery_list/screens/family_list_screen.dart';
-import 'package:my_grocery_list/utils/color_utils.dart';
+import 'package:my_grocery_list/screens/subscription_screen.dart';
+import 'package:my_grocery_list/services/supabase_service.dart';
 import 'package:my_grocery_list/widgets/add_item_input.dart';
 import 'package:my_grocery_list/widgets/family_manager_sheet.dart';
 import 'package:my_grocery_list/widgets/family_selector.dart';
@@ -17,6 +16,17 @@ import 'package:my_grocery_list/widgets/grocery_list_view.dart';
 
 class GroceryListScreen extends StatelessWidget {
   const GroceryListScreen({Key? key}) : super(key: key);
+
+  // Helper to check if we should show subscription button
+  bool get _canShowSubscription {
+    // Only show on Web and Android (not iOS)
+    if (kIsWeb) return true;
+    try {
+      return !Platform.isIOS; // Hide on iOS to comply with App Store rules
+    } catch (e) {
+      return true; // Default to showing if platform check fails
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +42,22 @@ class GroceryListScreen extends StatelessWidget {
           },
         ),
         actions: [
+          // Only show subscription button on non-iOS platforms
+          if (_canShowSubscription)
+            IconButton(
+              icon: const Icon(Icons.workspace_premium),
+              tooltip: 'Manage Subscription',
+              onPressed: () {
+                final supabaseService = context.read<SupabaseService>();
+                final familyId = supabaseService.getSelectedFamilyId();
+
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SubscriptionScreen(familyId: familyId),
+                  ),
+                );
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.people),
             onPressed: () => _showFamilyManager(context),
@@ -54,7 +80,6 @@ class GroceryListScreen extends StatelessWidget {
       body: Column(
         children: [
           FamilySelector(),
-
           Expanded(child: GroceryListView()),
           AddItemInput(),
         ],

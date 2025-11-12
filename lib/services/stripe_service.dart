@@ -3,9 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class StripeService {
-  static const String familyPlanPriceId = 'price_1SSVmTGWGIcBRuzmDh4N9pn7';
-  static const String proPlanPriceId = 'price_1SSVfGGWGIcBRuzmjhJBUAMV';
-  static const String additionalUserPriceId = 'price_1SSVpiGWGIcBRuzmknvlmRtd';
+  static const String familyPlanPriceId = 'price_1SSjUAGWGIcBRuzmakmVwjtr';
+  static const String proPlanPriceId = 'price_1SSjThGWGIcBRuzmQVGxM52I';
+  static const String additionalUserPriceId = 'price_1SSjUlGWGIcBRuzmpnk5pKB9';
 
   static const double familyPlanBasePrice = 4.99;
   static const double proPlanPrice = 1.99;

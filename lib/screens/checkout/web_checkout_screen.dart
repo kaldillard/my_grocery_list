@@ -50,7 +50,7 @@ class _WebCheckoutScreenState extends State<WebCheckoutScreen> {
         // Redirect to Stripe Checkout
         final stripe = js.context['Stripe']?.callMethod('call', [
           js.context,
-          'YOUR_STRIPE_PUBLISHABLE_KEY',
+          'pk_test_51Ry4auGWGIcBRuzmlK9ozi4QqXiZqLFv59xWAmzJR7KpxCHYoPgPOhBMIOuSqp4yNIH5CRU4oJ0u30XYoZ3V4fGQ00XlYYHRJP',
         ]);
 
         await stripe?.callMethod('redirectToCheckout', [

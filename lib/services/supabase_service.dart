@@ -302,4 +302,19 @@ class SupabaseService {
     final subData = Subscription.fromJson(sub);
     return currentMembers.length < subData.maxMembers;
   }
+
+  Future<void> sendSubscriptionEmail() async {
+    if (currentUser == null) {
+      throw Exception('No user logged in');
+    }
+
+    final response = await _client.functions.invoke(
+      'send-subscription-email',
+      body: {'user_id': currentUser!.id, 'email': currentUser!.email},
+    );
+
+    if (response.status != 200) {
+      throw Exception('Failed to send email: ${response.data}');
+    }
+  }
 }

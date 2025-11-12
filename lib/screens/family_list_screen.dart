@@ -1,5 +1,7 @@
 // lib/screens/family_list_screen.dart
 
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,6 +9,7 @@ import 'package:my_grocery_list/blocs/auth/auth_bloc.dart';
 import 'package:my_grocery_list/blocs/auth/auth_event.dart';
 import 'package:my_grocery_list/screens/auth_wrapper_screen.dart';
 import 'package:my_grocery_list/screens/family_setup_screen.dart';
+import 'package:my_grocery_list/screens/subscription_screen.dart';
 import 'package:my_grocery_list/services/supabase_service.dart';
 import 'package:my_grocery_list/utils/color_utils.dart';
 
@@ -15,6 +18,16 @@ class FamilyListScreen extends StatefulWidget {
 
   @override
   State<FamilyListScreen> createState() => _FamilyListScreenState();
+}
+
+// Helper to check if we can show subscription links
+bool get _canShowSubscription {
+  if (kIsWeb) return true;
+  try {
+    return !Platform.isIOS;
+  } catch (e) {
+    return true;
+  }
 }
 
 class _FamilyListScreenState extends State<FamilyListScreen> {
@@ -139,14 +152,101 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
   }
 
   void _showUpgradeDialog() {
+    final supabaseService = context.read<SupabaseService>();
+
+    // On iOS, show message with email option
+    if (!_canShowSubscription) {
+      showDialog(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              title: const Text('Upgrade Required'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'You\'ve reached the limit for the free plan.',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('To upgrade to Pro or Family plan:'),
+                  const SizedBox(height: 8),
+                  const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('• '),
+                      Expanded(
+                        child: Text('Check your email for a subscription link'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('• '),
+                      Expanded(
+                        child: Text(
+                          'Or visit our website to manage your subscription',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(context);
+
+                    // Send subscription email
+                    try {
+                      await supabaseService.sendSubscriptionEmail();
+
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Check your email for the subscription link!',
+                            ),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 4),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Send Email Link'),
+                ),
+              ],
+            ),
+      );
+      return;
+    }
+
+    // On Web/Android, show upgrade dialog with direct link
     showDialog(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Manage Subscription Required'),
+            title: const Text('Upgrade Required'),
             content: const Text(
               'You\'ve reached the limit for the free plan. '
-              'Manage Subscription to Pro or Family plan to create more lists!',
+              'Upgrade to Pro or Family plan to create more lists!',
             ),
             actions: [
               TextButton(
@@ -156,11 +256,21 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  // Open web browser to subscription page
-                  // You can use url_launcher package
-                  // launchUrl(Uri.parse('https://yourdomain.com/subscribe'));
+
+                  final familyId =
+                      _families.isNotEmpty
+                          ? (_families[0]['families']
+                                  as Map<String, dynamic>)['id']
+                              as String?
+                          : null;
+
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => SubscriptionScreen(familyId: familyId),
+                    ),
+                  );
                 },
-                child: const Text('Manage Subscription'),
+                child: const Text('View Plans'),
               ),
             ],
           ),
@@ -173,6 +283,26 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
       appBar: AppBar(
         title: const Text('My Grocery Lists'),
         actions: [
+          // Only show subscription button on non-iOS platforms
+          if (_canShowSubscription)
+            IconButton(
+              icon: const Icon(Icons.workspace_premium),
+              tooltip: 'Manage Subscription',
+              onPressed: () {
+                final familyId =
+                    _families.isNotEmpty
+                        ? (_families[0]['families']
+                                as Map<String, dynamic>)['id']
+                            as String?
+                        : null;
+
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SubscriptionScreen(familyId: familyId),
+                  ),
+                );
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
