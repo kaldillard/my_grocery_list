@@ -159,7 +159,7 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
       showDialog(
         context: context,
         builder:
-            (context) => AlertDialog(
+            (dialogContext) => AlertDialog(
               title: const Text('Upgrade Required'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -197,12 +197,12 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
                   onPressed: () async {
-                    Navigator.pop(context);
+                    Navigator.pop(dialogContext);
 
                     // Send subscription email
                     try {
@@ -242,7 +242,7 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
     showDialog(
       context: context,
       builder:
-          (context) => AlertDialog(
+          (dialogContext) => AlertDialog(
             title: const Text('Upgrade Required'),
             content: const Text(
               'You\'ve reached the limit for the free plan. '
@@ -250,12 +250,12 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(dialogContext),
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
                 onPressed: () {
-                  Navigator.pop(context);
+                  Navigator.pop(dialogContext);
 
                   final familyId =
                       _families.isNotEmpty

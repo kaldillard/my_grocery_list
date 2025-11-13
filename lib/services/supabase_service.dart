@@ -308,13 +308,48 @@ class SupabaseService {
       throw Exception('No user logged in');
     }
 
-    final response = await _client.functions.invoke(
-      'send-subscription-email',
-      body: {'user_id': currentUser!.id, 'email': currentUser!.email},
-    );
+    print('🔵 Sending subscription email to: ${currentUser!.email}');
+    print('🔵 User ID: ${currentUser!.id}');
 
-    if (response.status != 200) {
-      throw Exception('Failed to send email: ${response.data}');
+    try {
+      // Get the current session to access the JWT token
+      final session = _client.auth.currentSession;
+
+      if (session == null) {
+        throw Exception('No active session found');
+      }
+
+      print('🔵 Got session, calling function...');
+
+      final response = await _client.functions.invoke(
+        'send-subscription-email',
+        body: {'user_id': currentUser!.id, 'email': currentUser!.email},
+        headers: {'Authorization': 'Bearer ${session.accessToken}'},
+      );
+
+      print('🔵 Response status: ${response.status}');
+      print('🔵 Response data: ${response.data}');
+
+      if (response.status != 200) {
+        String errorMessage = 'Failed to send email';
+
+        if (response.data != null) {
+          if (response.data is Map && response.data['error'] != null) {
+            errorMessage = response.data['error'].toString();
+          } else {
+            errorMessage = response.data.toString();
+          }
+        }
+
+        print('🔴 Error: $errorMessage');
+        throw Exception(errorMessage);
+      }
+
+      print('✅ Email sent successfully');
+    } catch (e, stackTrace) {
+      print('🔴 Exception in sendSubscriptionEmail: $e');
+      print('🔴 Stack trace: $stackTrace');
+      rethrow;
     }
   }
 }
