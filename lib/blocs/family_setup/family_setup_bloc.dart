@@ -63,6 +63,7 @@ class FamilySetupBloc extends Bloc<FamilySetupEvent, FamilySetupState> {
         emit(FamilySetupError('Invalid invite code'));
       }
     } catch (e) {
+      print(e.toString());
       emit(FamilySetupError(e.toString()));
     }
   }

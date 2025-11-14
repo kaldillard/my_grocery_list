@@ -51,13 +51,28 @@ class SupabaseService {
   }
 
   Future<Map<String, dynamic>?> joinFamilyByCode(String inviteCode) async {
-    final family =
-        await _client
-            .from('families')
-            .select()
-            .eq('invite_code', inviteCode)
-            .single();
-    return family;
+    try {
+      print('🔍 Looking up family with invite code: $inviteCode');
+
+      // Use maybeSingle() instead of single() to handle case where family doesn't exist
+      final family =
+          await _client
+              .from('families')
+              .select()
+              .eq('invite_code', inviteCode.trim().toUpperCase())
+              .maybeSingle();
+
+      if (family == null) {
+        print('❌ No family found with that invite code');
+        throw Exception('Invalid invite code. Please check and try again.');
+      }
+
+      print('✅ Found family: ${family['name']}');
+      return family;
+    } catch (e) {
+      print('❌ Error in joinFamilyByCode: $e');
+      rethrow;
+    }
   }
 
   Future<void> addFamilyMember({
