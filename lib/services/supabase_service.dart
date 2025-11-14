@@ -1,6 +1,7 @@
 // lib/services/supabase_service.dart
 
 import 'dart:async';
+import 'package:my_grocery_list/models/category.dart';
 import 'package:my_grocery_list/models/subscription.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -505,50 +506,6 @@ class SupabaseService {
       rethrow;
     }
 
-    Future<List<Map<String, dynamic>>> getGroceryListsForFamily(
-      String familyId,
-    ) async {
-      return await _client
-          .from('grocery_lists')
-          .select()
-          .eq('family_id', familyId)
-          .order('created_at', ascending: false);
-    }
-
-    /// Create a new grocery list
-    Future<Map<String, dynamic>> createGroceryList({
-      required String familyId,
-      required String name,
-    }) async {
-      final result =
-          await _client
-              .from('grocery_lists')
-              .insert({
-                'family_id': familyId,
-                'name': name,
-                'created_by': currentUser!.id,
-              })
-              .select()
-              .single();
-
-      return result;
-    }
-
-    /// Update a grocery list name
-    Future<void> updateGroceryListName(String listId, String newName) async {
-      await _client
-          .from('grocery_lists')
-          .update({'name': newName})
-          .eq('id', listId);
-    }
-
-    /// Delete a grocery list (and all its items via CASCADE)
-    Future<void> deleteGroceryList(String listId) async {
-      await _client.from('grocery_lists').delete().eq('id', listId);
-    }
-
-    // ==================== UPDATED GROCERY ITEMS METHODS ====================
-
     /// Get grocery items for a specific list (replaces old getGroceryItems)
     Future<List<Map<String, dynamic>>> getGroceryItemsForList(
       String listId,
@@ -560,19 +517,6 @@ class SupabaseService {
           )
           .eq('list_id', listId)
           .order('added_at', ascending: false);
-    }
-
-    /// Add grocery item (updated to use list_id instead of family_id)
-    Future<void> addGroceryItemToList({
-      required String listId,
-      required String name,
-      required String addedById,
-    }) async {
-      await _client.from('grocery_items').insert({
-        'list_id': listId,
-        'name': name,
-        'added_by': addedById,
-      });
     }
 
     /// Clear completed items for a list
@@ -622,43 +566,6 @@ class SupabaseService {
 
       return channel;
     }
-
-    // ==================== LIST SELECTION (LOCAL STORAGE) ====================
-
-    String? _selectedListId;
-
-    void setSelectedListId(String listId) {
-      _selectedListId = listId;
-    }
-
-    String? getSelectedListId() {
-      return _selectedListId;
-    }
-
-    /// Get the selected list ID for a family (or return the first/default list)
-    Future<String?> getOrCreateDefaultList(String familyId) async {
-      // Check if there's a selected list
-      if (_selectedListId != null) {
-        return _selectedListId;
-      }
-
-      // Get all lists for the family
-      final lists = await getGroceryListsForFamily(familyId);
-
-      if (lists.isEmpty) {
-        // Create a default list if none exists
-        final newList = await createGroceryList(
-          familyId: familyId,
-          name: 'Family Grocery Haul',
-        );
-        _selectedListId = newList['id'] as String;
-        return _selectedListId;
-      }
-
-      // Return the first list
-      _selectedListId = lists[0]['id'] as String;
-      return _selectedListId;
-    }
   }
 
   Future<List<Map<String, dynamic>>> getGroceryListsForFamily(
@@ -703,8 +610,6 @@ class SupabaseService {
     await _client.from('grocery_lists').delete().eq('id', listId);
   }
 
-  // ==================== UPDATED GROCERY ITEMS METHODS ====================
-
   /// Get grocery items for a specific list (replaces old getGroceryItems)
   Future<List<Map<String, dynamic>>> getGroceryItemsForList(
     String listId,
@@ -723,12 +628,35 @@ class SupabaseService {
     required String listId,
     required String name,
     required String addedById,
+    int quantity = 1,
+    GroceryCategory category = GroceryCategory.other, // NEW
+    String? notes, // NEW
   }) async {
     await _client.from('grocery_items').insert({
       'list_id': listId,
       'name': name,
       'added_by': addedById,
+      'quantity': quantity,
+      'category': category.name, // NEW
+      'notes': notes, // NEW
     });
+  }
+
+  Future<void> updateGroceryItemDetails(
+    String itemId, {
+    String? name,
+    GroceryCategory? category,
+    String? notes,
+  }) async {
+    final updates = <String, dynamic>{
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    if (name != null) updates['name'] = name;
+    if (category != null) updates['category'] = category.name;
+    if (notes != null) updates['notes'] = notes;
+
+    await _client.from('grocery_items').update(updates).eq('id', itemId);
   }
 
   /// Clear completed items for a list
@@ -777,8 +705,6 @@ class SupabaseService {
     return channel;
   }
 
-  // ==================== LIST SELECTION (LOCAL STORAGE) ====================
-
   String? _selectedListId;
 
   void setSelectedListId(String listId) {
@@ -817,5 +743,16 @@ class SupabaseService {
   /// Remove a family member
   Future<void> removeFamilyMember(String memberId) async {
     await _client.from('family_members').delete().eq('id', memberId);
+  }
+
+  // NEW: Add method to update quantity
+  Future<void> updateGroceryItemQuantity(String itemId, int quantity) async {
+    await _client
+        .from('grocery_items')
+        .update({
+          'quantity': quantity,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', itemId);
   }
 }

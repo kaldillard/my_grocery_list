@@ -6,8 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:my_grocery_list/blocs/grocery/grocery_bloc.dart';
 import 'package:my_grocery_list/blocs/grocery/grocery_event.dart';
 import 'package:my_grocery_list/blocs/grocery/grocery_state.dart';
-import 'package:my_grocery_list/screens/family_list_screen.dart';
 import 'package:my_grocery_list/screens/family_member_screen.dart';
+import 'package:my_grocery_list/screens/shopping_mode_screen.dart';
 import 'package:my_grocery_list/screens/subscription_screen.dart';
 import 'package:my_grocery_list/services/supabase_service.dart';
 import 'package:my_grocery_list/widgets/add_item_input.dart';
@@ -23,14 +23,12 @@ class GroceryListScreen extends StatelessWidget {
     required this.familyName,
   });
 
-  // Helper to check if we should show subscription button
   bool get _canShowSubscription {
-    // Only show on Web and Android (not iOS)
     if (kIsWeb) return true;
     try {
-      return !Platform.isIOS; // Hide on iOS to comply with App Store rules
+      return !Platform.isIOS;
     } catch (e) {
-      return true; // Default to showing if platform check fails
+      return true;
     }
   }
 
@@ -46,7 +44,34 @@ class GroceryListScreen extends StatelessWidget {
           },
         ),
         actions: [
-          // Only show subscription button on non-iOS platforms
+          // Shopping mode button
+          BlocBuilder<GroceryBloc, GroceryState>(
+            builder: (context, state) {
+              final hasActiveItems = state.items.any(
+                (item) => !item.isCompleted,
+              );
+              return IconButton(
+                icon: const Icon(Icons.shopping_cart),
+                tooltip: 'Shopping Mode',
+                onPressed:
+                    hasActiveItems
+                        ? () {
+                          // Pass the existing GroceryBloc to ShoppingModeScreen
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder:
+                                  (_) => BlocProvider.value(
+                                    value: context.read<GroceryBloc>(),
+                                    child: const ShoppingModeScreen(),
+                                  ),
+                            ),
+                          );
+                        }
+                        : null,
+              );
+            },
+          ),
+
           if (_canShowSubscription)
             IconButton(
               icon: const Icon(Icons.workspace_premium),
@@ -62,7 +87,7 @@ class GroceryListScreen extends StatelessWidget {
                 );
               },
             ),
-          // Family members button
+
           IconButton(
             icon: const Icon(Icons.people),
             tooltip: 'Manage Family Members',
@@ -78,6 +103,7 @@ class GroceryListScreen extends StatelessWidget {
               );
             },
           ),
+
           BlocBuilder<GroceryBloc, GroceryState>(
             builder: (context, state) {
               final hasCompleted = state.items.any((item) => item.isCompleted);
@@ -94,7 +120,10 @@ class GroceryListScreen extends StatelessWidget {
         ],
       ),
       body: Column(
-        children: [Expanded(child: GroceryListView()), AddItemInput()],
+        children: [
+          const Expanded(child: GroceryListView()),
+          const AddItemInput(),
+        ],
       ),
     );
   }

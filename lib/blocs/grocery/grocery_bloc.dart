@@ -1,17 +1,16 @@
 // lib/blocs/grocery/grocery_bloc.dart
-// Replace your existing GroceryBloc with this updated version
-
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
 import '../../models/grocery_item.dart';
+import '../../models/category.dart';
 import 'grocery_event.dart';
 import 'grocery_state.dart';
 
 class GroceryBloc extends Bloc<GroceryEvent, GroceryState> {
   final SupabaseService supabaseService;
-  final String listId; // Changed from familyId to listId
+  final String listId;
   RealtimeChannel? _subscription;
 
   GroceryBloc({required this.supabaseService, required this.listId})
@@ -20,10 +19,11 @@ class GroceryBloc extends Bloc<GroceryEvent, GroceryState> {
     on<AddGroceryItem>(_onAddGroceryItem);
     on<ToggleGroceryItem>(_onToggleGroceryItem);
     on<DeleteGroceryItem>(_onDeleteGroceryItem);
+    on<UpdateGroceryItemQuantity>(_onUpdateGroceryItemQuantity);
+    on<UpdateGroceryItem>(_onUpdateGroceryItem); // NEW
     on<ClearCompletedItems>(_onClearCompletedItems);
     on<GroceryItemsUpdated>(_onGroceryItemsUpdated);
 
-    // Subscribe to real-time updates
     _setupRealtimeSubscription();
   }
 
@@ -62,8 +62,10 @@ class GroceryBloc extends Bloc<GroceryEvent, GroceryState> {
         listId: listId,
         name: event.name,
         addedById: event.addedByMemberId,
+        quantity: event.quantity,
+        category: event.category, // NEW
+        notes: event.notes, // NEW
       );
-      // Real-time subscription will handle the update
     } catch (e) {
       print('Error adding grocery item: $e');
     }
@@ -74,10 +76,8 @@ class GroceryBloc extends Bloc<GroceryEvent, GroceryState> {
     Emitter<GroceryState> emit,
   ) async {
     try {
-      // Find the item to get its current state
       final item = state.items.firstWhere((i) => i.id == event.id);
       await supabaseService.updateGroceryItem(event.id, !item.isCompleted);
-      // Real-time subscription will handle the update
     } catch (e) {
       print('Error toggling grocery item: $e');
     }
@@ -89,9 +89,36 @@ class GroceryBloc extends Bloc<GroceryEvent, GroceryState> {
   ) async {
     try {
       await supabaseService.deleteGroceryItem(event.id);
-      // Real-time subscription will handle the update
     } catch (e) {
       print('Error deleting grocery item: $e');
+    }
+  }
+
+  Future<void> _onUpdateGroceryItemQuantity(
+    UpdateGroceryItemQuantity event,
+    Emitter<GroceryState> emit,
+  ) async {
+    try {
+      await supabaseService.updateGroceryItemQuantity(event.id, event.quantity);
+    } catch (e) {
+      print('Error updating grocery item quantity: $e');
+    }
+  }
+
+  // NEW: Handler for updating item details
+  Future<void> _onUpdateGroceryItem(
+    UpdateGroceryItem event,
+    Emitter<GroceryState> emit,
+  ) async {
+    try {
+      await supabaseService.updateGroceryItemDetails(
+        event.id,
+        name: event.name,
+        category: event.category,
+        notes: event.notes,
+      );
+    } catch (e) {
+      print('Error updating grocery item: $e');
     }
   }
 
@@ -101,7 +128,6 @@ class GroceryBloc extends Bloc<GroceryEvent, GroceryState> {
   ) async {
     try {
       await supabaseService.clearCompletedItemsInList(listId);
-      // Real-time subscription will handle the update
     } catch (e) {
       print('Error clearing completed items: $e');
     }
@@ -117,7 +143,6 @@ class GroceryBloc extends Bloc<GroceryEvent, GroceryState> {
 
   List<GroceryItem> _mapToGroceryItems(List<Map<String, dynamic>> data) {
     return data.map((item) {
-      // Extract member info from the joined data
       final memberData = item['family_members'] as Map<String, dynamic>?;
       final addedBy = memberData?['display_name'] ?? 'Unknown';
 
@@ -127,6 +152,15 @@ class GroceryBloc extends Bloc<GroceryEvent, GroceryState> {
         isCompleted: item['is_completed'] as bool? ?? false,
         addedBy: addedBy,
         addedAt: DateTime.parse(item['added_at'] as String),
+        quantity: item['quantity'] as int? ?? 1,
+        category:
+            item['category'] != null
+                ? GroceryCategory.values.firstWhere(
+                  (e) => e.name == item['category'],
+                  orElse: () => GroceryCategory.other,
+                )
+                : GroceryCategory.other, // NEW
+        notes: item['notes'] as String?, // NEW
       );
     }).toList();
   }
