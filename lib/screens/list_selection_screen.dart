@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:my_grocery_list/blocs/subscription/subscription_bloc.dart';
 import 'package:my_grocery_list/blocs/subscription/subscription_state.dart';
 import 'package:my_grocery_list/models/subscription.dart';
+import 'package:my_grocery_list/screens/family_member_screen.dart';
 import 'package:my_grocery_list/screens/grocery_list_screen.dart';
 import 'package:my_grocery_list/services/supabase_service.dart';
 import 'package:my_grocery_list/utils/color_utils.dart';
@@ -84,7 +85,10 @@ class _ListSelectionScreenState extends State<ListSelectionScreen> {
                     ..add(LoadGroceryData()),
         ),
       ],
-      child: const GroceryListScreen(),
+      child: GroceryListScreen(
+        familyId: widget.familyId,
+        familyName: widget.familyName,
+      ),
     );
   }
 
@@ -239,6 +243,22 @@ class _ListSelectionScreenState extends State<ListSelectionScreen> {
                 );
               }
               return const SizedBox.shrink();
+            },
+          ),
+          // Family members button
+          IconButton(
+            icon: const Icon(Icons.people),
+            tooltip: 'Manage Family Members',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder:
+                      (_) => FamilyMembersScreen(
+                        familyId: widget.familyId,
+                        familyName: widget.familyName,
+                      ),
+                ),
+              );
             },
           ),
         ],

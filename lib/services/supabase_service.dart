@@ -813,4 +813,9 @@ class SupabaseService {
     _selectedListId = lists[0]['id'] as String;
     return _selectedListId;
   }
+
+  /// Remove a family member
+  Future<void> removeFamilyMember(String memberId) async {
+    await _client.from('family_members').delete().eq('id', memberId);
+  }
 }

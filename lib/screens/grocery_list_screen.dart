@@ -7,6 +7,7 @@ import 'package:my_grocery_list/blocs/grocery/grocery_bloc.dart';
 import 'package:my_grocery_list/blocs/grocery/grocery_event.dart';
 import 'package:my_grocery_list/blocs/grocery/grocery_state.dart';
 import 'package:my_grocery_list/screens/family_list_screen.dart';
+import 'package:my_grocery_list/screens/family_member_screen.dart';
 import 'package:my_grocery_list/screens/subscription_screen.dart';
 import 'package:my_grocery_list/services/supabase_service.dart';
 import 'package:my_grocery_list/widgets/add_item_input.dart';
@@ -14,7 +15,13 @@ import 'package:my_grocery_list/widgets/family_manager_sheet.dart';
 import 'package:my_grocery_list/widgets/grocery_list_view.dart';
 
 class GroceryListScreen extends StatelessWidget {
-  const GroceryListScreen({Key? key}) : super(key: key);
+  final String familyId;
+  final String familyName;
+  const GroceryListScreen({
+    super.key,
+    required this.familyId,
+    required this.familyName,
+  });
 
   // Helper to check if we should show subscription button
   bool get _canShowSubscription {
@@ -55,9 +62,21 @@ class GroceryListScreen extends StatelessWidget {
                 );
               },
             ),
+          // Family members button
           IconButton(
             icon: const Icon(Icons.people),
-            onPressed: () => _showFamilyManager(context),
+            tooltip: 'Manage Family Members',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder:
+                      (_) => FamilyMembersScreen(
+                        familyId: familyId,
+                        familyName: familyName,
+                      ),
+                ),
+              );
+            },
           ),
           BlocBuilder<GroceryBloc, GroceryState>(
             builder: (context, state) {
