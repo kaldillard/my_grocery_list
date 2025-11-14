@@ -14,6 +14,10 @@ class MockSupabaseService extends Mock implements SupabaseService {}
 class MockRealtimeChannel extends Mock implements RealtimeChannel {}
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(GroceryCategory.other);
+  });
+
   group('GroceryBloc', () {
     late MockSupabaseService mockSupabaseService;
     late MockRealtimeChannel mockChannel;
@@ -22,6 +26,9 @@ void main() {
     setUp(() {
       mockSupabaseService = MockSupabaseService();
       mockChannel = MockRealtimeChannel();
+
+      // CRITICAL: Mock unsubscribe to return Future<String>
+      when(() => mockChannel.unsubscribe()).thenAnswer((_) async => 'ok');
 
       // Setup default mock responses
       when(
@@ -96,7 +103,7 @@ void main() {
             category: any(named: 'category'),
             notes: any(named: 'notes'),
           ),
-        ).thenAnswer((_) async => {});
+        ).thenAnswer((_) async {});
       },
       build:
           () => GroceryBloc(
@@ -132,7 +139,7 @@ void main() {
       setUp: () {
         when(
           () => mockSupabaseService.updateGroceryItemQuantity(any(), any()),
-        ).thenAnswer((_) async => {});
+        ).thenAnswer((_) async {});
       },
       build:
           () => GroceryBloc(
@@ -155,7 +162,7 @@ void main() {
         ).thenAnswer((_) async => []);
         when(
           () => mockSupabaseService.updateGroceryItem(any(), any()),
-        ).thenAnswer((_) async => {});
+        ).thenAnswer((_) async {});
       },
       build:
           () => GroceryBloc(
@@ -187,7 +194,7 @@ void main() {
       setUp: () {
         when(
           () => mockSupabaseService.deleteGroceryItem(any()),
-        ).thenAnswer((_) async => {});
+        ).thenAnswer((_) async {});
       },
       build:
           () => GroceryBloc(
@@ -210,7 +217,7 @@ void main() {
             category: any(named: 'category'),
             notes: any(named: 'notes'),
           ),
-        ).thenAnswer((_) async => {});
+        ).thenAnswer((_) async {});
       },
       build:
           () => GroceryBloc(
@@ -269,8 +276,6 @@ void main() {
     );
 
     test('unsubscribes from realtime on close', () async {
-      when(() => mockChannel.unsubscribe()).thenAnswer((_) async => 'ok');
-
       final bloc = GroceryBloc(
         supabaseService: mockSupabaseService,
         listId: testListId,
