@@ -7,6 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:my_grocery_list/blocs/auth/auth_bloc.dart';
 import 'package:my_grocery_list/blocs/auth/auth_event.dart';
+import 'package:my_grocery_list/blocs/subscription/subscription_bloc.dart';
+import 'package:my_grocery_list/blocs/subscription/subscription_state.dart';
+import 'package:my_grocery_list/models/subscription.dart';
 import 'package:my_grocery_list/screens/auth_wrapper_screen.dart';
 import 'package:my_grocery_list/screens/family_setup_screen.dart';
 import 'package:my_grocery_list/screens/subscription_screen.dart';
@@ -20,7 +23,6 @@ class FamilyListScreen extends StatefulWidget {
   State<FamilyListScreen> createState() => _FamilyListScreenState();
 }
 
-// Helper to check if we can show subscription links
 bool get _canShowSubscription {
   if (kIsWeb) return true;
   try {
@@ -46,7 +48,6 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
     final supabaseService = context.read<SupabaseService>();
 
     try {
-      // Get all families the user is a member of
       final memberships = await supabaseService.getAllFamiliesForCurrentUser();
 
       setState(() {
@@ -60,26 +61,26 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
   }
 
   void _selectFamily(String familyId) {
-    // Save the selected family
     final supabaseService = context.read<SupabaseService>();
     supabaseService.setSelectedFamilyId(familyId);
 
-    // Navigate to grocery list with selected family
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const AuthWrapperScreen()),
     );
   }
 
   void _createNewFamily() async {
-    final supabaseService = context.read<SupabaseService>();
-    final canCreate = await supabaseService.canCreateList(
-      supabaseService.currentUser!.id,
-    );
+    // Check subscription status from bloc
+    final subscriptionState = context.read<SubscriptionBloc>().state;
 
-    if (!canCreate) {
-      // Show upgrade dialog
-      _showUpgradeDialog();
-      return;
+    if (subscriptionState is SubscriptionLoaded) {
+      final subscription = subscriptionState.subscription;
+
+      // Check if user can create more lists
+      if (subscription.tier == SubscriptionTier.free && _families.isNotEmpty) {
+        _showUpgradeDialog();
+        return;
+      }
     }
 
     Navigator.of(context)
@@ -154,7 +155,6 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
   void _showUpgradeDialog() {
     final supabaseService = context.read<SupabaseService>();
 
-    // On iOS, show message with email option
     if (!_canShowSubscription) {
       showDialog(
         context: context,
@@ -204,7 +204,6 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
                   onPressed: () async {
                     Navigator.pop(dialogContext);
 
-                    // Send subscription email
                     try {
                       await supabaseService.sendSubscriptionEmail();
 
@@ -238,7 +237,6 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
       return;
     }
 
-    // On Web/Android, show upgrade dialog with direct link
     showDialog(
       context: context,
       builder:
@@ -283,7 +281,27 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
       appBar: AppBar(
         title: const Text('My Grocery Lists'),
         actions: [
-          // Only show subscription button on non-iOS platforms
+          // Show subscription tier indicator
+          BlocBuilder<SubscriptionBloc, SubscriptionState>(
+            builder: (context, state) {
+              if (state is SubscriptionLoaded) {
+                return Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Chip(
+                    label: Text(
+                      state.subscription.tier.displayName,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    backgroundColor:
+                        state.subscription.tier == SubscriptionTier.free
+                            ? Colors.grey[300]
+                            : Colors.green[100],
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
           if (_canShowSubscription)
             IconButton(
               icon: const Icon(Icons.workspace_premium),

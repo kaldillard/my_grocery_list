@@ -1,5 +1,6 @@
 // lib/services/supabase_service.dart
 
+import 'dart:async';
 import 'package:my_grocery_list/models/subscription.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -30,6 +31,8 @@ class SupabaseService {
 
   Future<void> signOut() async {
     await _client.auth.signOut();
+    // Clean up subscription listener when signing out
+    await stopListeningToSubscription();
   }
 
   User? get currentUser => _client.auth.currentUser;
@@ -168,7 +171,6 @@ class SupabaseService {
             )
             .subscribe();
 
-    //print('SupabaseService - Channel created: ${channel.status}');
     return channel;
   }
 
@@ -257,22 +259,206 @@ class SupabaseService {
     return _selectedFamilyId;
   }
 
+  // ==================== SUBSCRIPTION METHODS ====================
+
+  // Realtime subscription listener
+  RealtimeChannel? _subscriptionChannel;
+
+  // Current subscription data cache
+  Subscription? _currentSubscription;
+
+  // Stream controller to notify listeners
+  final _subscriptionController = StreamController<Subscription?>.broadcast();
+
+  /// Stream that emits subscription updates
+  Stream<Subscription?> get subscriptionStream =>
+      _subscriptionController.stream;
+
+  /// Get cached subscription (useful for synchronous access)
+  Subscription? get currentSubscription => _currentSubscription;
+
+  /// Check if user has an active paid subscription
+  bool get hasActiveSubscription {
+    return _currentSubscription != null &&
+        _currentSubscription!.status == 'active' &&
+        _currentSubscription!.tier != SubscriptionTier.free;
+  }
+
+  /// Get current subscription tier
+  SubscriptionTier get subscriptionTier {
+    return _currentSubscription?.tier ?? SubscriptionTier.free;
+  }
+
+  /// Get max lists allowed (null means unlimited)
+  int? get maxLists {
+    return _currentSubscription?.maxLists;
+  }
+
+  /// Start listening to subscription changes for the current user's family
+  Future<void> startListeningToSubscription() async {
+    if (currentUser == null) {
+      print('⚠️ No user logged in, cannot listen to subscription');
+      return;
+    }
+
+    try {
+      print('🎧 Setting up subscription listener...');
+
+      // Get user's family_id
+      final familyResponse =
+          await _client
+              .from('family_members')
+              .select('family_id')
+              .eq('user_id', currentUser!.id)
+              .maybeSingle();
+
+      if (familyResponse == null) {
+        print('⚠️ User not in any family');
+        return;
+      }
+
+      final familyId = familyResponse['family_id'];
+      print('👨‍👩‍👧‍👦 Listening to subscriptions for family: $familyId');
+
+      // Cancel existing channel if any
+      await _subscriptionChannel?.unsubscribe();
+
+      // Create new channel for this family's subscription
+      _subscriptionChannel =
+          _client
+              .channel('subscription-$familyId')
+              .onPostgresChanges(
+                event: PostgresChangeEvent.all,
+                schema: 'public',
+                table: 'subscriptions',
+                filter: PostgresChangeFilter(
+                  type: PostgresChangeFilterType.eq,
+                  column: 'family_id',
+                  value: familyId,
+                ),
+                callback: (payload) {
+                  print('🔔 Subscription change detected!');
+                  print('Event: ${payload.eventType}');
+                  print('Data: ${payload.newRecord}');
+
+                  if (payload.newRecord.isNotEmpty) {
+                    final subscription = Subscription.fromJson(
+                      payload.newRecord,
+                    );
+                    _currentSubscription = subscription;
+                    _subscriptionController.add(subscription);
+
+                    // Show notification if subscription became active
+                    if (subscription.status == 'active') {
+                      print('✅ Subscription is now ACTIVE!');
+                      print('Tier: ${subscription.tier}');
+                      print('Max lists: ${subscription.maxLists}');
+                      print('Max members: ${subscription.maxMembers}');
+                    }
+                  }
+                },
+              )
+              .subscribe();
+
+      print('✅ Subscription listener active');
+
+      // Also fetch current subscription state
+      await fetchCurrentSubscription();
+    } catch (e) {
+      print('❌ Error setting up subscription listener: $e');
+    }
+  }
+
+  /// Fetch the current subscription (initial state)
+  Future<Subscription?> fetchCurrentSubscription() async {
+    if (currentUser == null) return null;
+
+    try {
+      // Get user's family_id
+      final familyResponse =
+          await _client
+              .from('family_members')
+              .select('family_id')
+              .eq('user_id', currentUser!.id)
+              .maybeSingle();
+
+      if (familyResponse == null) return null;
+
+      final familyId = familyResponse['family_id'];
+
+      // Get subscription
+      final subscriptionData =
+          await _client
+              .from('subscriptions')
+              .select('*')
+              .eq('family_id', familyId)
+              .maybeSingle();
+
+      if (subscriptionData != null) {
+        final subscription = Subscription.fromJson(subscriptionData);
+        print(
+          '📊 Current subscription: ${subscription.tier} (${subscription.status})',
+        );
+        _currentSubscription = subscription;
+        _subscriptionController.add(subscription);
+        return subscription;
+      } else {
+        print('📊 No active subscription found');
+        _currentSubscription = null;
+        _subscriptionController.add(null);
+        return null;
+      }
+    } catch (e) {
+      print('❌ Error fetching subscription: $e');
+      return null;
+    }
+  }
+
+  /// Stop listening to subscription changes
+  Future<void> stopListeningToSubscription() async {
+    print('🔇 Stopping subscription listener');
+    await _subscriptionChannel?.unsubscribe();
+    _subscriptionChannel = null;
+  }
+
+  /// Dispose resources (call this when service is no longer needed)
+  void dispose() {
+    stopListeningToSubscription();
+    _subscriptionController.close();
+  }
+
+  // Legacy methods - keeping for backward compatibility
   Future<Subscription?> getSubscriptionForUser(String userId) async {
     final result =
         await _client
             .from('subscriptions')
             .select()
             .eq('user_id', userId)
+            .eq('status', 'active')
+            .order('created_at', ascending: false)
+            .limit(1)
             .maybeSingle();
 
     return result != null ? Subscription.fromJson(result) : null;
   }
 
   Future<bool> canCreateList(String userId) async {
+    // Use cached subscription if available
+    if (_currentSubscription != null) {
+      if (_currentSubscription!.tier == SubscriptionTier.free) {
+        final lists = await _client
+            .from('families')
+            .select('id')
+            .eq('created_by', userId);
+        return lists.length < 1;
+      }
+      return true;
+    }
+
+    // Fallback to fetching
     final sub = await getSubscriptionForUser(userId);
 
     if (sub == null || sub.tier == SubscriptionTier.free) {
-      // Check if user already has a list
       final lists = await _client
           .from('families')
           .select('id')
@@ -281,7 +467,7 @@ class SupabaseService {
       return lists.length < 1;
     }
 
-    return true; // Pro and Family have unlimited lists
+    return true;
   }
 
   Future<bool> canAddMember(String familyId) async {
@@ -312,7 +498,6 @@ class SupabaseService {
     print('🔵 User ID: ${currentUser!.id}');
 
     try {
-      // Get the current session to access the JWT token
       final session = _client.auth.currentSession;
 
       if (session == null) {

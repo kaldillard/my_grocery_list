@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:my_grocery_list/blocs/auth/auth_event.dart';
+import 'package:my_grocery_list/blocs/subscription/subscription_bloc.dart';
+import 'package:my_grocery_list/blocs/subscription/subscription_event.dart';
 import 'blocs/auth/auth_bloc.dart';
 import 'blocs/family_setup/family_setup_bloc.dart';
 import 'services/supabase_service.dart';
@@ -19,8 +21,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RepositoryProvider.value(
-      value:
-          supabaseService, // Make SupabaseService available throughout the app
+      value: supabaseService,
       child: MultiBlocProvider(
         providers: [
           // Auth BLoC - available app-wide
@@ -35,14 +36,19 @@ class MyApp extends StatelessWidget {
             create:
                 (context) => FamilySetupBloc(supabaseService: supabaseService),
           ),
-          // Note: GroceryBloc and FamilyBloc are created later after we know the familyId
+          // Subscription BLoC - for managing subscription state
+          BlocProvider(
+            create:
+                (context) =>
+                    SubscriptionBloc(supabaseService: supabaseService)
+                      ..add(LoadSubscription()),
+          ),
         ],
         child: MaterialApp(
           title: AppConstants.appName,
           debugShowCheckedModeBanner: false,
           theme: _buildTheme(),
-          home:
-              const AuthWrapperScreen(), // This screen handles routing based on auth state
+          home: const AppLifecycleWrapper(child: AuthWrapperScreen()),
         ),
       ),
     );
@@ -82,5 +88,44 @@ class MyApp extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
+  }
+}
+
+/// Wrapper to detect when app comes to foreground
+class AppLifecycleWrapper extends StatefulWidget {
+  final Widget child;
+
+  const AppLifecycleWrapper({Key? key, required this.child}) : super(key: key);
+
+  @override
+  State<AppLifecycleWrapper> createState() => _AppLifecycleWrapperState();
+}
+
+class _AppLifecycleWrapperState extends State<AppLifecycleWrapper>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // App came to foreground - refresh subscription
+      print('App resumed - refreshing subscription');
+      context.read<SubscriptionBloc>().add(RefreshSubscription());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }
