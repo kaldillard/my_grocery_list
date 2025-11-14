@@ -24,7 +24,6 @@ class AppConstants {
   /// Hints and messages
   static const String addItemHint = 'Add grocery item...';
   static const String addMemberHint = 'Add family member...';
-  static const String shoppingAsLabel = 'Shopping as:';
   static const String emptyListMessage =
       'No items yet.\nAdd your first grocery item!';
 }
