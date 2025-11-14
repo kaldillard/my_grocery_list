@@ -15,7 +15,7 @@ class AppConstants {
   ];
 
   /// App name
-  static const String appName = 'Family Grocery List';
+  static const String appName = 'Family Grocery Haul';
 
   /// Section headers
   static const String toBuyHeader = 'TO BUY';

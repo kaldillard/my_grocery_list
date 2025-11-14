@@ -12,12 +12,13 @@ import 'package:my_grocery_list/blocs/subscription/subscription_state.dart';
 import 'package:my_grocery_list/models/subscription.dart';
 import 'package:my_grocery_list/screens/auth_wrapper_screen.dart';
 import 'package:my_grocery_list/screens/family_setup_screen.dart';
+import 'package:my_grocery_list/screens/list_selection_screen.dart';
 import 'package:my_grocery_list/screens/subscription_screen.dart';
 import 'package:my_grocery_list/services/supabase_service.dart';
 import 'package:my_grocery_list/utils/color_utils.dart';
 
 class FamilyListScreen extends StatefulWidget {
-  const FamilyListScreen({Key? key}) : super(key: key);
+  const FamilyListScreen({super.key});
 
   @override
   State<FamilyListScreen> createState() => _FamilyListScreenState();
@@ -43,29 +44,40 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
   }
 
   Future<void> _loadFamilies() async {
-    setState(() => _isLoading = true);
-
+    // Get the service BEFORE any await calls
     final supabaseService = context.read<SupabaseService>();
+
+    setState(() => _isLoading = true);
 
     try {
       final memberships = await supabaseService.getAllFamiliesForCurrentUser();
 
-      setState(() {
-        _families = memberships;
-        _isLoading = false;
-      });
+      // Check if widget is still mounted before calling setState
+      if (mounted) {
+        setState(() {
+          _families = memberships;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('Error loading families: $e');
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  void _selectFamily(String familyId) {
+  void _selectFamily(String familyId, String familyName) {
     final supabaseService = context.read<SupabaseService>();
     supabaseService.setSelectedFamilyId(familyId);
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const AuthWrapperScreen()),
+    // Navigate to list selection screen instead of directly to grocery list
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (_) =>
+                ListSelectionScreen(familyId: familyId, familyName: familyName),
+      ),
     );
   }
 
@@ -279,7 +291,7 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Grocery Lists'),
+        title: const Text('My Family List'),
         actions: [
           // Show subscription tier indicator
           BlocBuilder<SubscriptionBloc, SubscriptionState>(
@@ -338,7 +350,7 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _createNewFamily,
         icon: const Icon(Icons.add),
-        label: const Text('Create New List'),
+        label: const Text('Create New Family'),
       ),
     );
   }
@@ -428,7 +440,12 @@ class _FamilyListScreenState extends State<FamilyListScreen> {
                 const Icon(Icons.chevron_right),
               ],
             ),
-            onTap: () => _selectFamily(familyData['id'] as String),
+            // Update the ListTile onTap in _buildFamilyList:
+            onTap:
+                () => _selectFamily(
+                  familyData['id'] as String,
+                  familyData['name'] as String,
+                ),
           ),
         );
       },

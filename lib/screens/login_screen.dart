@@ -84,7 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       // Title
                       Text(
-                        'Family Grocery List',
+                        'Family Grocery Haul',
                         style: Theme.of(context).textTheme.headlineMedium
                             ?.copyWith(fontWeight: FontWeight.bold),
                         textAlign: TextAlign.center,

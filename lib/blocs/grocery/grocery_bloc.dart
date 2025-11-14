@@ -1,4 +1,5 @@
 // lib/blocs/grocery/grocery_bloc.dart
+// Replace your existing GroceryBloc with this updated version
 
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -10,10 +11,10 @@ import 'grocery_state.dart';
 
 class GroceryBloc extends Bloc<GroceryEvent, GroceryState> {
   final SupabaseService supabaseService;
-  final String familyId;
+  final String listId; // Changed from familyId to listId
   RealtimeChannel? _subscription;
 
-  GroceryBloc({required this.supabaseService, required this.familyId})
+  GroceryBloc({required this.supabaseService, required this.listId})
     : super(const GroceryState()) {
     on<LoadGroceryData>(_onLoadGroceryData);
     on<AddGroceryItem>(_onAddGroceryItem);
@@ -27,17 +28,14 @@ class GroceryBloc extends Bloc<GroceryEvent, GroceryState> {
   }
 
   void _setupRealtimeSubscription() {
-    print(
-      'GroceryBloc - Setting up real-time subscription for family: $familyId',
-    );
+    print('GroceryBloc - Setting up real-time subscription for list: $listId');
 
-    _subscription = supabaseService.subscribeToGroceryItems(familyId, (items) {
+    _subscription = supabaseService.subscribeToGroceryItemsInList(listId, (
+      items,
+    ) {
       print('GroceryBloc - Real-time update received: ${items.length} items');
       add(GroceryItemsUpdated(items));
     });
-
-    // Check if subscription was successful
-    // print('GroceryBloc - Subscription status: ${_subscription?.status}');
   }
 
   Future<void> _onLoadGroceryData(
@@ -46,7 +44,7 @@ class GroceryBloc extends Bloc<GroceryEvent, GroceryState> {
   ) async {
     emit(state.copyWith(isLoading: true));
     try {
-      final itemsData = await supabaseService.getGroceryItems(familyId);
+      final itemsData = await supabaseService.getGroceryItemsForList(listId);
       final items = _mapToGroceryItems(itemsData);
       emit(state.copyWith(items: items, isLoading: false));
     } catch (e) {
@@ -60,8 +58,8 @@ class GroceryBloc extends Bloc<GroceryEvent, GroceryState> {
     Emitter<GroceryState> emit,
   ) async {
     try {
-      await supabaseService.addGroceryItem(
-        familyId: familyId,
+      await supabaseService.addGroceryItemToList(
+        listId: listId,
         name: event.name,
         addedById: event.addedByMemberId,
       );
@@ -102,7 +100,7 @@ class GroceryBloc extends Bloc<GroceryEvent, GroceryState> {
     Emitter<GroceryState> emit,
   ) async {
     try {
-      await supabaseService.clearCompletedItems(familyId);
+      await supabaseService.clearCompletedItemsInList(listId);
       // Real-time subscription will handle the update
     } catch (e) {
       print('Error clearing completed items: $e');

@@ -30,9 +30,23 @@ class SupabaseService {
   }
 
   Future<void> signOut() async {
-    await _client.auth.signOut();
-    // Clean up subscription listener when signing out
+    print('🔓 Signing out user');
+
+    // Clean up subscription listener
     await stopListeningToSubscription();
+
+    // Clear cached subscription data
+    _currentSubscription = null;
+    _subscriptionController.add(null);
+
+    // Clear selected family and list
+    _selectedFamilyId = null;
+    _selectedListId = null;
+
+    // Sign out from Supabase
+    await _client.auth.signOut();
+
+    print('✅ Sign out complete - all caches cleared');
   }
 
   User? get currentUser => _client.auth.currentUser;
@@ -106,29 +120,6 @@ class SupabaseService {
     return result;
   }
 
-  // Grocery items methods
-  Future<List<Map<String, dynamic>>> getGroceryItems(String familyId) async {
-    return await _client
-        .from('grocery_items')
-        .select(
-          '*, family_members!grocery_items_added_by_fkey(display_name, color)',
-        )
-        .eq('family_id', familyId)
-        .order('added_at', ascending: false);
-  }
-
-  Future<void> addGroceryItem({
-    required String familyId,
-    required String name,
-    required String addedById,
-  }) async {
-    await _client.from('grocery_items').insert({
-      'family_id': familyId,
-      'name': name,
-      'added_by': addedById,
-    });
-  }
-
   Future<void> updateGroceryItem(String itemId, bool isCompleted) async {
     await _client
         .from('grocery_items')
@@ -149,44 +140,6 @@ class SupabaseService {
         .delete()
         .eq('family_id', familyId)
         .eq('is_completed', true);
-  }
-
-  // Real-time subscription for grocery items
-  RealtimeChannel subscribeToGroceryItems(
-    String familyId,
-    void Function(List<Map<String, dynamic>>) onData,
-  ) {
-    print(
-      'SupabaseService - Subscribing to grocery items for family: $familyId',
-    );
-
-    final channel =
-        _client
-            .channel('grocery_items_$familyId')
-            .onPostgresChanges(
-              event: PostgresChangeEvent.all,
-              schema: 'public',
-              table: 'grocery_items',
-              filter: PostgresChangeFilter(
-                type: PostgresChangeFilterType.eq,
-                column: 'family_id',
-                value: familyId,
-              ),
-              callback: (payload) async {
-                print('SupabaseService - Realtime event: ${payload.eventType}');
-                print('SupabaseService - New data: ${payload.newRecord}');
-
-                // Fetch fresh data
-                final items = await getGroceryItems(familyId);
-                print(
-                  'SupabaseService - Fetched ${items.length} items after update',
-                );
-                onData(items);
-              },
-            )
-            .subscribe();
-
-    return channel;
   }
 
   Future<Map<String, dynamic>?> getFamilyMembershipForCurrentUser() async {
@@ -551,5 +504,313 @@ class SupabaseService {
       print('🔴 Stack trace: $stackTrace');
       rethrow;
     }
+
+    Future<List<Map<String, dynamic>>> getGroceryListsForFamily(
+      String familyId,
+    ) async {
+      return await _client
+          .from('grocery_lists')
+          .select()
+          .eq('family_id', familyId)
+          .order('created_at', ascending: false);
+    }
+
+    /// Create a new grocery list
+    Future<Map<String, dynamic>> createGroceryList({
+      required String familyId,
+      required String name,
+    }) async {
+      final result =
+          await _client
+              .from('grocery_lists')
+              .insert({
+                'family_id': familyId,
+                'name': name,
+                'created_by': currentUser!.id,
+              })
+              .select()
+              .single();
+
+      return result;
+    }
+
+    /// Update a grocery list name
+    Future<void> updateGroceryListName(String listId, String newName) async {
+      await _client
+          .from('grocery_lists')
+          .update({'name': newName})
+          .eq('id', listId);
+    }
+
+    /// Delete a grocery list (and all its items via CASCADE)
+    Future<void> deleteGroceryList(String listId) async {
+      await _client.from('grocery_lists').delete().eq('id', listId);
+    }
+
+    // ==================== UPDATED GROCERY ITEMS METHODS ====================
+
+    /// Get grocery items for a specific list (replaces old getGroceryItems)
+    Future<List<Map<String, dynamic>>> getGroceryItemsForList(
+      String listId,
+    ) async {
+      return await _client
+          .from('grocery_items')
+          .select(
+            '*, family_members!grocery_items_added_by_fkey(display_name, color)',
+          )
+          .eq('list_id', listId)
+          .order('added_at', ascending: false);
+    }
+
+    /// Add grocery item (updated to use list_id instead of family_id)
+    Future<void> addGroceryItemToList({
+      required String listId,
+      required String name,
+      required String addedById,
+    }) async {
+      await _client.from('grocery_items').insert({
+        'list_id': listId,
+        'name': name,
+        'added_by': addedById,
+      });
+    }
+
+    /// Clear completed items for a list
+    Future<void> clearCompletedItemsInList(String listId) async {
+      await _client
+          .from('grocery_items')
+          .delete()
+          .eq('list_id', listId)
+          .eq('is_completed', true);
+    }
+
+    // ==================== UPDATED REALTIME SUBSCRIPTION ====================
+
+    /// Subscribe to grocery items for a specific list
+    RealtimeChannel subscribeToGroceryItemsInList(
+      String listId,
+      void Function(List<Map<String, dynamic>>) onData,
+    ) {
+      print('SupabaseService - Subscribing to grocery items for list: $listId');
+
+      final channel =
+          _client
+              .channel('grocery_items_list_$listId')
+              .onPostgresChanges(
+                event: PostgresChangeEvent.all,
+                schema: 'public',
+                table: 'grocery_items',
+                filter: PostgresChangeFilter(
+                  type: PostgresChangeFilterType.eq,
+                  column: 'list_id',
+                  value: listId,
+                ),
+                callback: (payload) async {
+                  print(
+                    'SupabaseService - Realtime event: ${payload.eventType}',
+                  );
+
+                  // Fetch fresh data
+                  final items = await getGroceryItemsForList(listId);
+                  print(
+                    'SupabaseService - Fetched ${items.length} items after update',
+                  );
+                  onData(items);
+                },
+              )
+              .subscribe();
+
+      return channel;
+    }
+
+    // ==================== LIST SELECTION (LOCAL STORAGE) ====================
+
+    String? _selectedListId;
+
+    void setSelectedListId(String listId) {
+      _selectedListId = listId;
+    }
+
+    String? getSelectedListId() {
+      return _selectedListId;
+    }
+
+    /// Get the selected list ID for a family (or return the first/default list)
+    Future<String?> getOrCreateDefaultList(String familyId) async {
+      // Check if there's a selected list
+      if (_selectedListId != null) {
+        return _selectedListId;
+      }
+
+      // Get all lists for the family
+      final lists = await getGroceryListsForFamily(familyId);
+
+      if (lists.isEmpty) {
+        // Create a default list if none exists
+        final newList = await createGroceryList(
+          familyId: familyId,
+          name: 'Family Grocery Haul',
+        );
+        _selectedListId = newList['id'] as String;
+        return _selectedListId;
+      }
+
+      // Return the first list
+      _selectedListId = lists[0]['id'] as String;
+      return _selectedListId;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getGroceryListsForFamily(
+    String familyId,
+  ) async {
+    return await _client
+        .from('grocery_lists')
+        .select()
+        .eq('family_id', familyId)
+        .order('created_at', ascending: false);
+  }
+
+  /// Create a new grocery list
+  Future<Map<String, dynamic>> createGroceryList({
+    required String familyId,
+    required String name,
+  }) async {
+    final result =
+        await _client
+            .from('grocery_lists')
+            .insert({
+              'family_id': familyId,
+              'name': name,
+              'created_by': currentUser!.id,
+            })
+            .select()
+            .single();
+
+    return result;
+  }
+
+  /// Update a grocery list name
+  Future<void> updateGroceryListName(String listId, String newName) async {
+    await _client
+        .from('grocery_lists')
+        .update({'name': newName})
+        .eq('id', listId);
+  }
+
+  /// Delete a grocery list (and all its items via CASCADE)
+  Future<void> deleteGroceryList(String listId) async {
+    await _client.from('grocery_lists').delete().eq('id', listId);
+  }
+
+  // ==================== UPDATED GROCERY ITEMS METHODS ====================
+
+  /// Get grocery items for a specific list (replaces old getGroceryItems)
+  Future<List<Map<String, dynamic>>> getGroceryItemsForList(
+    String listId,
+  ) async {
+    return await _client
+        .from('grocery_items')
+        .select(
+          '*, family_members!grocery_items_added_by_fkey(display_name, color)',
+        )
+        .eq('list_id', listId)
+        .order('added_at', ascending: false);
+  }
+
+  /// Add grocery item (updated to use list_id instead of family_id)
+  Future<void> addGroceryItemToList({
+    required String listId,
+    required String name,
+    required String addedById,
+  }) async {
+    await _client.from('grocery_items').insert({
+      'list_id': listId,
+      'name': name,
+      'added_by': addedById,
+    });
+  }
+
+  /// Clear completed items for a list
+  Future<void> clearCompletedItemsInList(String listId) async {
+    await _client
+        .from('grocery_items')
+        .delete()
+        .eq('list_id', listId)
+        .eq('is_completed', true);
+  }
+
+  // ==================== UPDATED REALTIME SUBSCRIPTION ====================
+
+  /// Subscribe to grocery items for a specific list
+  RealtimeChannel subscribeToGroceryItemsInList(
+    String listId,
+    void Function(List<Map<String, dynamic>>) onData,
+  ) {
+    print('SupabaseService - Subscribing to grocery items for list: $listId');
+
+    final channel =
+        _client
+            .channel('grocery_items_list_$listId')
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: 'grocery_items',
+              filter: PostgresChangeFilter(
+                type: PostgresChangeFilterType.eq,
+                column: 'list_id',
+                value: listId,
+              ),
+              callback: (payload) async {
+                print('SupabaseService - Realtime event: ${payload.eventType}');
+
+                // Fetch fresh data
+                final items = await getGroceryItemsForList(listId);
+                print(
+                  'SupabaseService - Fetched ${items.length} items after update',
+                );
+                onData(items);
+              },
+            )
+            .subscribe();
+
+    return channel;
+  }
+
+  // ==================== LIST SELECTION (LOCAL STORAGE) ====================
+
+  String? _selectedListId;
+
+  void setSelectedListId(String listId) {
+    _selectedListId = listId;
+  }
+
+  String? getSelectedListId() {
+    return _selectedListId;
+  }
+
+  /// Get the selected list ID for a family (or return the first/default list)
+  Future<String?> getOrCreateDefaultList(String familyId) async {
+    // Check if there's a selected list
+    if (_selectedListId != null) {
+      return _selectedListId;
+    }
+
+    // Get all lists for the family
+    final lists = await getGroceryListsForFamily(familyId);
+
+    if (lists.isEmpty) {
+      // Create a default list if none exists
+      final newList = await createGroceryList(
+        familyId: familyId,
+        name: 'Family Grocery Haul',
+      );
+      _selectedListId = newList['id'] as String;
+      return _selectedListId;
+    }
+
+    // Return the first list
+    _selectedListId = lists[0]['id'] as String;
+    return _selectedListId;
   }
 }

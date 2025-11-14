@@ -16,28 +16,34 @@ class SubscriptionBloc extends Bloc<SubscriptionEvent, SubscriptionState> {
     on<SubscriptionUpdated>(_onSubscriptionUpdated);
     on<StartListeningToSubscription>(_onStartListening);
     on<StopListeningToSubscription>(_onStopListening);
+    on<ResetSubscription>(_onResetSubscription);
   }
 
   Future<void> _onLoadSubscription(
     LoadSubscription event,
     Emitter<SubscriptionState> emit,
   ) async {
+    print(
+      '📥 Loading subscription for user: ${supabaseService.currentUser?.id}',
+    );
     emit(SubscriptionLoading());
+
     try {
-      // Use the new fetchCurrentSubscription method which works with family_id
       final subscription = await supabaseService.fetchCurrentSubscription();
 
       if (subscription != null) {
+        print(
+          '✅ Found subscription: ${subscription.tier} - ${subscription.status}',
+        );
         emit(SubscriptionLoaded(subscription));
       } else {
-        // No subscription means free tier
+        print('ℹ️ No subscription found - using free tier');
         emit(SubscriptionLoaded(_createFreeSubscription()));
       }
 
-      // Start listening to realtime updates
       add(StartListeningToSubscription());
     } catch (e) {
-      print('Error loading subscription: $e');
+      print('❌ Error loading subscription: $e');
       emit(SubscriptionError(e.toString()));
     }
   }
@@ -136,5 +142,20 @@ class SubscriptionBloc extends Bloc<SubscriptionEvent, SubscriptionState> {
     _subscriptionListener?.cancel();
     supabaseService.stopListeningToSubscription();
     return super.close();
+  }
+
+  void _onResetSubscription(
+    ResetSubscription event,
+    Emitter<SubscriptionState> emit,
+  ) {
+    print('🔄 Resetting subscription state');
+
+    // Stop listening
+    _subscriptionListener?.cancel();
+    _subscriptionListener = null;
+    supabaseService.stopListeningToSubscription();
+
+    // Reset to initial state
+    emit(SubscriptionInitial());
   }
 }

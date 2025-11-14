@@ -18,3 +18,5 @@ class SubscriptionUpdated extends SubscriptionEvent {
 class StartListeningToSubscription extends SubscriptionEvent {}
 
 class StopListeningToSubscription extends SubscriptionEvent {}
+
+class ResetSubscription extends SubscriptionEvent {}

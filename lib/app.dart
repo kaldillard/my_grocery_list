@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:my_grocery_list/blocs/auth/auth_event.dart';
+import 'package:my_grocery_list/blocs/auth/auth_state.dart';
 import 'package:my_grocery_list/blocs/subscription/subscription_bloc.dart';
 import 'package:my_grocery_list/blocs/subscription/subscription_event.dart';
 import 'blocs/auth/auth_bloc.dart';
@@ -24,19 +25,16 @@ class MyApp extends StatelessWidget {
       value: supabaseService,
       child: MultiBlocProvider(
         providers: [
-          // Auth BLoC - available app-wide
           BlocProvider(
             create:
                 (context) =>
                     AuthBloc(supabaseService: supabaseService)
                       ..add(AuthCheckRequested()),
           ),
-          // Family Setup BLoC - for onboarding
           BlocProvider(
             create:
                 (context) => FamilySetupBloc(supabaseService: supabaseService),
           ),
-          // Subscription BLoC - for managing subscription state
           BlocProvider(
             create:
                 (context) =>
@@ -44,11 +42,27 @@ class MyApp extends StatelessWidget {
                       ..add(LoadSubscription()),
           ),
         ],
-        child: MaterialApp(
-          title: AppConstants.appName,
-          debugShowCheckedModeBanner: false,
-          theme: _buildTheme(),
-          home: const AppLifecycleWrapper(child: AuthWrapperScreen()),
+        child: Builder(
+          builder: (context) {
+            // ADD THIS LISTENER
+            return BlocListener<AuthBloc, AuthState>(
+              listener: (context, state) {
+                if (state is AuthUnauthenticated) {
+                  print('🔓 User signed out - resetting subscription');
+                  context.read<SubscriptionBloc>().add(ResetSubscription());
+                } else if (state is AuthAuthenticated) {
+                  print('🔐 User signed in - loading subscription');
+                  context.read<SubscriptionBloc>().add(LoadSubscription());
+                }
+              },
+              child: MaterialApp(
+                title: AppConstants.appName,
+                debugShowCheckedModeBanner: false,
+                theme: _buildTheme(),
+                home: const AppLifecycleWrapper(child: AuthWrapperScreen()),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -95,7 +109,7 @@ class MyApp extends StatelessWidget {
 class AppLifecycleWrapper extends StatefulWidget {
   final Widget child;
 
-  const AppLifecycleWrapper({Key? key, required this.child}) : super(key: key);
+  const AppLifecycleWrapper({super.key, required this.child});
 
   @override
   State<AppLifecycleWrapper> createState() => _AppLifecycleWrapperState();

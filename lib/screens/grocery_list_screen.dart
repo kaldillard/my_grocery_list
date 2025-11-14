@@ -11,7 +11,6 @@ import 'package:my_grocery_list/screens/subscription_screen.dart';
 import 'package:my_grocery_list/services/supabase_service.dart';
 import 'package:my_grocery_list/widgets/add_item_input.dart';
 import 'package:my_grocery_list/widgets/family_manager_sheet.dart';
-import 'package:my_grocery_list/widgets/family_selector.dart';
 import 'package:my_grocery_list/widgets/grocery_list_view.dart';
 
 class GroceryListScreen extends StatelessWidget {
@@ -34,11 +33,9 @@ class GroceryListScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Family Grocery List'),
         leading: IconButton(
-          icon: const Icon(Icons.list),
+          icon: const Icon(Icons.arrow_back_ios),
           onPressed: () {
-            Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const FamilyListScreen()));
+            Navigator.pop(context);
           },
         ),
         actions: [
@@ -78,11 +75,7 @@ class GroceryListScreen extends StatelessWidget {
         ],
       ),
       body: Column(
-        children: [
-          FamilySelector(),
-          Expanded(child: GroceryListView()),
-          AddItemInput(),
-        ],
+        children: [Expanded(child: GroceryListView()), AddItemInput()],
       ),
     );
   }

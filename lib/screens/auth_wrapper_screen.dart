@@ -3,16 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:my_grocery_list/blocs/auth/auth_state.dart';
-import 'package:my_grocery_list/blocs/family/family_event.dart';
-import 'package:my_grocery_list/blocs/grocery/grocery_event.dart';
 import 'package:my_grocery_list/screens/family_list_screen.dart';
-import 'package:my_grocery_list/screens/family_setup_screen.dart';
 import 'package:my_grocery_list/screens/login_screen.dart';
+import 'package:my_grocery_list/screens/list_selection_screen.dart';
 import '../blocs/auth/auth_bloc.dart';
-import '../blocs/grocery/grocery_bloc.dart';
-import '../blocs/family/family_bloc.dart';
 import '../services/supabase_service.dart';
-import 'grocery_list_screen.dart';
 
 /// Wrapper screen that decides which screen to show based on auth state
 class AuthWrapperScreen extends StatefulWidget {
@@ -103,16 +98,18 @@ class _FamilyCheckWidgetState extends State<_FamilyCheckWidget> {
           );
         }
 
-        // No family selected - show family list
+        // No family selected - show family list screen
         if (snapshot.data == null || snapshot.data!['family_id'] == null) {
           print('No family selected - showing family list');
           return const FamilyListScreen();
         }
 
-        // Has family - show grocery list with proper BLoCs
+        // Has family - show list selection screen for that family
         final familyId = snapshot.data!['family_id'] as String;
-        print('Family found: $familyId - showing grocery list');
-        return _buildGroceryListWithBLoCs(context, familyId);
+        final familyName = snapshot.data!['family_name'] as String;
+        print('Family found: $familyId - showing list selection');
+
+        return ListSelectionScreen(familyId: familyId, familyName: familyName);
       },
     );
   }
@@ -134,7 +131,16 @@ class _FamilyCheckWidgetState extends State<_FamilyCheckWidget> {
 
       if (selectedFamilyId != null) {
         print('Using selected family: $selectedFamilyId');
-        return {'family_id': selectedFamilyId};
+
+        // Get the family name
+        final family = await supabaseService.getFamilyById(selectedFamilyId);
+
+        if (family != null) {
+          return {
+            'family_id': selectedFamilyId,
+            'family_name': family['name'] as String,
+          };
+        }
       }
 
       // No selected family, return null to show family list
@@ -144,30 +150,5 @@ class _FamilyCheckWidgetState extends State<_FamilyCheckWidget> {
       print('Error in _checkUserFamily: $e');
       rethrow;
     }
-  }
-
-  /// Build the grocery list screen with the necessary BLoCs
-  Widget _buildGroceryListWithBLoCs(BuildContext context, String familyId) {
-    final supabaseService = context.read<SupabaseService>();
-
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create:
-              (context) => FamilyBloc(
-                supabaseService: supabaseService,
-                familyId: familyId,
-              )..add(LoadFamilyData()),
-        ),
-        BlocProvider(
-          create:
-              (context) => GroceryBloc(
-                supabaseService: supabaseService,
-                familyId: familyId,
-              )..add(LoadGroceryData()),
-        ),
-      ],
-      child: const GroceryListScreen(),
-    );
   }
 }
