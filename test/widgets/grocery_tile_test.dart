@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:my_grocery_list/blocs/family/family_state.dart';
 import 'package:my_grocery_list/blocs/grocery/grocery_bloc.dart';
 import 'package:my_grocery_list/blocs/grocery/grocery_event.dart';
+import 'package:my_grocery_list/blocs/grocery/grocery_state.dart';
 import 'package:my_grocery_list/models/category.dart';
 import 'package:my_grocery_list/models/family_member.dart';
 import 'package:my_grocery_list/models/grocery_item.dart';
@@ -39,6 +40,14 @@ void main() {
       registerFallbackValue(ToggleGroceryItem(''));
       registerFallbackValue(UpdateGroceryItemQuantity('', 1));
       registerFallbackValue(DeleteGroceryItem(''));
+
+      // Fix: Mock the stream property
+      when(
+        () => mockGroceryBloc.stream,
+      ).thenAnswer((_) => Stream<GroceryState>.empty());
+
+      // Mock the state
+      when(() => mockGroceryBloc.state).thenReturn(const GroceryState());
     });
 
     Widget buildWidget() {

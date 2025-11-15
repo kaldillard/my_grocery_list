@@ -21,24 +21,22 @@ void main() {
       mockSupabaseService = MockSupabaseService();
       mockUser = MockUser();
 
-      // Setup mock user
-      when(() => mockUser.id).thenReturn('test-user-id');
-      when(() => mockUser.email).thenReturn('test@example.com');
-
       // Setup default mocks
+      when(() => mockUser.id).thenReturn('test-user-id');
       when(() => mockSupabaseService.currentUser).thenReturn(mockUser);
-      when(
-        () => mockSupabaseService.fetchCurrentSubscription(),
-      ).thenAnswer((_) async => null);
-      when(
-        () => mockSupabaseService.startListeningToSubscription(),
-      ).thenAnswer((_) async {});
+
+      // Fix: Return proper Future<void> instead of null
       when(
         () => mockSupabaseService.stopListeningToSubscription(),
       ).thenAnswer((_) async {});
+
+      when(
+        () => mockSupabaseService.startListeningToSubscription(),
+      ).thenAnswer((_) async {});
+
       when(
         () => mockSupabaseService.subscriptionStream,
-      ).thenAnswer((_) => const Stream.empty());
+      ).thenAnswer((_) => Stream.value(null));
     });
 
     test('initial state is SubscriptionInitial', () {
@@ -73,7 +71,7 @@ void main() {
         final subscription = Subscription(
           id: 'sub-1',
           familyId: 'family-1',
-          userId: 'user-1',
+          userId: 'test-user-id',
           tier: SubscriptionTier.pro,
           status: 'active',
           monthlyPrice: 1.99,
@@ -107,7 +105,15 @@ void main() {
       },
       build: () => SubscriptionBloc(supabaseService: mockSupabaseService),
       act: (bloc) => bloc.add(LoadSubscription()),
-      expect: () => [isA<SubscriptionLoading>(), isA<SubscriptionError>()],
+      expect:
+          () => [
+            isA<SubscriptionLoading>(),
+            isA<SubscriptionError>().having(
+              (s) => s.message,
+              'message',
+              contains('Network error'),
+            ),
+          ],
     );
 
     blocTest<SubscriptionBloc, SubscriptionState>(
@@ -118,7 +124,7 @@ void main() {
             Subscription(
               id: 'sub-1',
               familyId: 'family-1',
-              userId: 'user-1',
+              userId: 'test-user-id',
               tier: SubscriptionTier.pro,
               status: 'active',
               monthlyPrice: 1.99,
@@ -128,6 +134,12 @@ void main() {
           ),
       act: (bloc) => bloc.add(ResetSubscription()),
       expect: () => [isA<SubscriptionInitial>()],
+      verify: (_) {
+        // Verify that stopListeningToSubscription was called
+        verify(
+          () => mockSupabaseService.stopListeningToSubscription(),
+        ).called(1);
+      },
     );
   });
 }
